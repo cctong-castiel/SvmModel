@@ -17,6 +17,7 @@ class _SVM(_Base):
                  gamma: Union[Text, float] = "scale",
                  tol: float = 1e-3,
                  max_iter: int = 100,
+                 lr: float = 0.001,
                  random_state: int = None):
         
         super().__init__()
@@ -26,15 +27,36 @@ class _SVM(_Base):
         self.gamma = gamma
         self.tol = tol
         self.max_iter = max_iter
+        self.lr = lr
         self.random_state = random_state
 
     def sgd(self,
             iter: int,
             X: np.ndarray,
-            y: np.array,
-            losses: List[float]):
+            y: np.array):
 
-        
+        losses, weigths, bias = float("inf"), None, None
+        early_stop = 0
+
+        for index, x in enumerate(len(X)):
+
+            dW, db = super().gradients(x, y[index])
+
+            self.W[index] -= self.lr * dW
+            self.b[index] -= self.lr * db
+
+        if (iter % 2) or (iter == self.max_iter - 1):
+            loss = super().loss(X, y)
+            print(f"loss in {iter} is: {loss}")
+
+            if (early_stop == 3) or (iter == self.max_iter - 1):
+                early_stop = 0
+                return 
+            
+            if loss > losses:
+                early_stop += 1
+
+            losses = loss
 
     def fit(self,
             X: np.ndarray,
@@ -85,14 +107,32 @@ class _SVM(_Base):
         # normalize the inputs
         X = super().normalize(X)
 
-        # losses and weights
-        losses = []
+        if self.multi_class is True:
 
-        Parallel(
-            n_jobs=cpu,
-            backend="threading"
-        )(delayed(super().sgd)(
-            iter_, X, y, losses
-        )
-        for iter_ in range(self.max_iter))
+        else:
+            Parallel(
+                n_jobs=cpu,
+                backend="threading"
+            )(delayed(super().sgd)(
+                iter_, X, y
+            )
+            for iter_ in range(self.max_iter))
 
+    def predict(self, X: np.ndarray) -> np.array:
+
+        # normalizing
+        X = super().normalize(X)
+
+        return np.sign(np.dot(self.W, X) + self.b)
+
+    def predict_proba(self, X: np.ndarray) -> np.array:
+
+        # normalizing
+        X = super().normalize(X)
+
+        if self.multi_class:
+            arr_prop = np.zeros((len(self.classes_), X.shape[0]))
+
+
+
+        return arr_prop
