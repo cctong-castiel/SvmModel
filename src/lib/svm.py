@@ -30,17 +30,36 @@ class _SVM(_Base):
         self.lr = lr
         self.random_state = random_state
 
+    def distances(self, 
+                  X: np.ndarray,
+                  y: np.arrange,
+                  with_lagrange: bool=True):
+        distances = y * np.dot(self.W, X) - 1
+
+        if with_lagrange:
+            # if distance is more than 0, sample is not on the support vector
+            # lagrange multiplier will be 0
+            distances[distances > 0] = 0
+        
+        return distances
+
     def sgd(self,
             iter: int,
             X: np.ndarray,
             y: np.array):
 
-        losses, weigths, bias = float("inf"), None, None
+        losses = float("inf")
         early_stop = 0
 
-        for index, x in enumerate(len(X)):
+        # distance
+        distances = self.distances(X, y)
 
-            dW, db = super().gradients(x, y[index])
+        for index, d in enumerate(distances):
+
+            if d == 0:
+                pass
+            else:
+                dW, db = super().gradients(X[index], y[index])
 
             self.W[index] -= self.lr * dW
             self.b[index] -= self.lr * db
@@ -102,37 +121,41 @@ class _SVM(_Base):
         else:
             self.W = np.zeros((n))
             self.b = 0
-        self.lagrange = np.zeros(y_classes)
                 
         # normalize the inputs
         X = super().normalize(X)
 
-        if self.multi_class is True:
-
-        else:
-            Parallel(
-                n_jobs=cpu,
-                backend="threading"
-            )(delayed(super().sgd)(
-                iter_, X, y
-            )
-            for iter_ in range(self.max_iter))
+        Parallel(
+            n_jobs=cpu,
+            backend="threading"
+        )(delayed(super().sgd)(
+            iter_, X, y
+        )
+        for iter_ in range(self.max_iter))
 
     def predict(self, X: np.ndarray) -> np.array:
+        
+        pred = np.ndarray(X.shape[0])
 
-        # normalizing
-        X = super().normalize(X)
+        preds = self.predict_proba(X)
 
-        return np.sign(np.dot(self.W, X) + self.b)
+        max_prop = np.argmax(preds.T, axis=0)
+
+        for index in self.id_2_class:
+            pred[max_prop == index] = self.id_2_class[index]
+
+        return pred
 
     def predict_proba(self, X: np.ndarray) -> np.array:
 
         # normalizing
         X = super().normalize(X)
 
-        if self.multi_class:
-            arr_prop = np.zeros((len(self.classes_), X.shape[0]))
+        arr_prop = np.zeros((len(self.classes_), X.shape[0]))
+        
+        pred = super().sigmoid(np.dot(self.W, X) + self.b)
 
+        arr_prop[0] = 1 - pred
+        arr_prop[1] = pred
 
-
-        return arr_prop
+        return arr_prop.T

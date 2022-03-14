@@ -15,13 +15,21 @@ class _Base():
     def sgd(self):
         pass
 
+    @staticmethod
+    def sigmoid(z: np.ndarray) -> np.ndarray:
+        return 1 / (1 + np.exp(-z))
+
+    @staticmethod
+    def softmax(z: np.ndarray):
+        return np.exp(z) / np.sum(np.exp(z), axis=0)
+
     def gradients(self, 
                   X: np.ndarray,
                   y: np.array):
         
-        dW = np.sum(self.lagrange * y * X)
+        dW = np.sum(self.C * y * X) / len(X)
 
-        db = np.sum(self.lagrange * y)
+        db = np.sum(self.C * y) / len(y)
 
         return dW, db
 
@@ -30,7 +38,7 @@ class _Base():
              y: np.array):
         
         half_w_d = 0.5 * np.dot(self.W, self.W)
-        total_d = np.sum(self.lagrange * y * np.dot(self.W, X) - 1)
-        loss = half_w_d + total_d
+        total_d = self.C * np.sum( y * np.dot(self.W, X) - 1)
+        loss = half_w_d - total_d
 
         return loss
