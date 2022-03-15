@@ -10,6 +10,12 @@ cpu = multiprocessing.cpu_count() - 1
 
 class _SVM(_Base):
 
+    d_kernels = {
+        "linear": super().kernel_linear,
+        "poly": super().kernel_poly,
+        "rbf": super().kernel_rbf
+    }
+
     def __init__(self,
                  C: float = 1.0,
                  kernel: Text = "linear",
@@ -29,6 +35,7 @@ class _SVM(_Base):
         self.max_iter = max_iter
         self.lr = lr
         self.random_state = random_state
+        self.kernels = None
 
     def distances(self, 
                   X: np.ndarray,
@@ -109,6 +116,8 @@ class _SVM(_Base):
         m, n = X.shape
         self.classes_ = np.unique(y)
         y_classes = len(self.classes_)
+        self.kernels = self.d_kernels[self.kernel]
+        self.alpha = np.zeros((m))
 
         for index, y_ in enumerate(self.classes_):
             d_id_class[index] = y_
