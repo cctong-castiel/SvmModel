@@ -51,11 +51,12 @@ class _Base():
 
     def gradients(self, 
                   X: np.ndarray,
-                  y: np.array) -> np.ndarray:
+                  y: np.array,
+                  alpha: np.array) -> np.ndarray:
         
-        dW = np.sum(self.C * y * X) / len(X)
+        dW = np.sum(self.C * alpha * y * X) / len(X)
 
-        db = np.sum(self.C * y) / len(y)
+        db = np.sum(self.C * alpha * y) / len(y)
 
         return dW, db
 

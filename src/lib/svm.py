@@ -37,6 +37,8 @@ class _SVM(_Base):
         self.random_state = random_state
         self.kernels = None
 
+        np.random.seed(self.random_state)
+
     def distances(self, 
                   X: np.ndarray,
                   y: np.arrange,
@@ -53,7 +55,8 @@ class _SVM(_Base):
     def sgd(self,
             iter: int,
             X: np.ndarray,
-            y: np.array):
+            y: np.array,
+            alpha: np.array):
 
         losses = float("inf")
         early_stop = 0
@@ -66,7 +69,7 @@ class _SVM(_Base):
             if d == 0:
                 pass
             else:
-                dW, db = super().gradients(X[index], y[index])
+                dW, db = super().gradients(X[index], y[index], alpha[index])
 
             self.W[index] -= self.lr * dW
             self.b[index] -= self.lr * db
@@ -117,11 +120,15 @@ class _SVM(_Base):
         self.classes_ = np.unique(y)
         y_classes = len(self.classes_)
         self.kernels = self.d_kernels[self.kernel]
-        self.alpha = np.zeros((m))
+        alpha = np.random.rand(m)
 
         for index, y_ in enumerate(self.classes_):
             d_id_class[index] = y_
+        d_id_class[-1] = d_id_class.pop(0)
         self.id_2_class = d_id_class
+
+        # change y
+        y[y == self.id_2_class[-1]] = -1
 
         # initializing weights and bias to zeros
         if self.multi_class:
@@ -138,7 +145,7 @@ class _SVM(_Base):
             n_jobs=cpu,
             backend="threading"
         )(delayed(super().sgd)(
-            iter_, X, y
+            iter_, X, y, alpha
         )
         for iter_ in range(self.max_iter))
 
