@@ -10,12 +10,6 @@ cpu = multiprocessing.cpu_count() - 1
 
 class _SVM(_Base):
 
-    d_kernels = {
-        "linear": super().kernel_linear,
-        "poly": super().kernel_poly,
-        "rbf": super().kernel_rbf
-    }
-
     def __init__(self,
                  C: float = 1.0,
                  kernel: Text = "linear",
@@ -24,6 +18,7 @@ class _SVM(_Base):
                  tol: float = 1e-3,
                  max_iter: int = 100,
                  lr: float = 0.001,
+                 multi_class: bool = False,
                  random_state: int = None):
         
         super().__init__()
@@ -34,51 +29,36 @@ class _SVM(_Base):
         self.tol = tol
         self.max_iter = max_iter
         self.lr = lr
+        self.multi_class = multi_class
         self.random_state = random_state
-        self.kernels = None
+        self.d_kernels = {
+                "linear": super().kernel_linear,
+                "poly": super().kernel_poly,
+                "rbf": super().kernel_rbf
+            }
 
         np.random.seed(self.random_state)
-
-    def distances(self, 
-                  X: np.ndarray,
-                  y: np.arrange,
-                  with_lagrange: bool=True):
-        distances = y * np.dot(self.W, X) - 1
-
-        if with_lagrange:
-            # if distance is more than 0, sample is not on the support vector
-            # lagrange multiplier will be 0
-            distances[distances > 0] = 0
-        
-        return distances
 
     def sgd(self,
             iter: int,
             X: np.ndarray,
             y: np.array,
-            alpha: np.array):
+            alpha: np.array,
+            func):
 
         losses = float("inf")
         early_stop = 0
 
-        # distance
-        distances = self.distances(X, y)
+        dW, db = super().gradients(X, y, alpha)
 
-        for index, d in enumerate(distances):
+        self.W -= self.lr * dW
+        self.b -= self.lr * db
 
-            if d == 0:
-                pass
-            else:
-                dW, db = super().gradients(X[index], y[index], alpha[index])
-
-            self.W[index] -= self.lr * dW
-            self.b[index] -= self.lr * db
-
-        if (iter % 2) or (iter == self.max_iter - 1):
-            loss = super().loss(X, y)
+        if (iter % 2) or (iter == self.max_iter):
+            loss = func(X, y, alpha)
             print(f"loss in {iter} is: {loss}")
 
-            if (early_stop == 3) or (iter == self.max_iter - 1):
+            if (early_stop == 3) or (iter == self.max_iter):
                 early_stop = 0
                 return 
             
@@ -132,20 +112,36 @@ class _SVM(_Base):
 
         # initializing weights and bias to zeros
         if self.multi_class:
-            self.W = np.zeros((y_classes, n))
+            self.W = np.ones((y_classes, n))
             self.b = np.zeros(y_classes)
         else:
-            self.W = np.zeros((n))
+            self.W = np.ones((n))
             self.b = 0
+
+        # set gamma
+        if self.gamma == "scale":
+            self.gamma = 1 / (n * X.var())
+        elif self.gamma == "auto":
+            self.gamma = 1 / n
+
+        # set kernel function
+        if self.kernel == "linear":
+            loss_func = super().linear_loss
+        else:
+            loss_func = super().kernel_loss
                 
         # normalize the inputs
         X = super().normalize(X)
 
+        print(f"shape of X: {X.shape}")
+        print(f"shape of y: {y.shape}")
+        print(f"shape of alpha: {alpha.shape}")
+
         Parallel(
             n_jobs=cpu,
             backend="threading"
-        )(delayed(super().sgd)(
-            iter_, X, y, alpha
+        )(delayed(self.sgd)(
+            iter_, X, y, alpha, loss_func
         )
         for iter_ in range(self.max_iter))
 
@@ -169,7 +165,7 @@ class _SVM(_Base):
 
         arr_prop = np.zeros((len(self.classes_), X.shape[0]))
         
-        pred = super().sigmoid(np.dot(self.W, X) + self.b)
+        pred = super().sigmoid(np.dot(X, self.W) + self.b)
 
         arr_prop[0] = 1 - pred
         arr_prop[1] = pred
